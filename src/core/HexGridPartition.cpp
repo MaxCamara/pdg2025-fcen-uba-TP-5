@@ -150,19 +150,35 @@ bool HexGridPartition::insertPoints(const vector<float>& coord) {
   float x,y,z;
   for(iPoint=0;iPoint<nPoints;iPoint++) {
     // 1) get the x,y,z coordinates of the point iPoint
+    x = coord[iPoint*3];
+    y = coord[iPoint*3+1];
+    z = coord[iPoint*3+2];
     // 2) if the points is not contained in the bounding box
     //    - increase the _nPointsOutsideBox variable
     //    - do not insert the point in any list
+    if(x < _min.x || x >= _max.x ||
+       y < _min.y || y >= _max.y ||
+       z < _min.x || z >= _max.x){
+        _nPointsOutsideBox++;
+        continue;
+    }
     // 3) quantize the x,y,z coordinates to ix,iy,iz
     //    - so that [_min.x:_max.x) --> 0<=ix<N
     //    - same for iy, and iz
+    ix = N*(x-_min.x)/(_max.x-_min.x);
+    iy = N*(y-_min.y)/(_max.y-_min.y);
+    iz = N*(z-_min.z)/(_max.z-_min.z);
     // 4) increment _nPointsInsideBox
+    _nPointsInsideBox++;
     // 5) compute the scan order index iCell cooresponding to
     //    the cell index (ix,iy,iz)
+    iCell = ix+N*(iy+N*iz);
     // 6) insert iPoint in the iCell list
     //    - Note: use _first.count(iCell) to find out whether or not
     //    - the iCell list is empty or not; otherwise you will end up
-    //    - with _first being a dense map 
+    //    - with _first being a dense map
+    if(_first.count(iCell)>0) _next[iPoint] = _first[iCell];
+    _first[iCell] = iPoint;
   }
 
   return true; // success
@@ -187,6 +203,9 @@ bool HexGridPartition::sample
   int k,iPointFirst,iPoint,nPointsCell,iPointMin,iSamplePoint;
   float xMean,yMean,zMean,fPointsInCell,dx,dy,dz,dPoint2,dMin2;
 
+  const vector<float>& coord = *_coord;
+  float x,y,z;
+
   // traverse the cell of the _first map
   map<int,int>::iterator iMap = _first.begin();
   for(;iMap!=_first.end();iMap++) {
@@ -204,20 +223,48 @@ bool HexGridPartition::sample
     xMean=yMean=zMean=0.0f;
     for(iPoint=iPointFirst;iPoint>=0;iPoint=_next[iPoint]) {
       // 1) get x,y,z coords of iPoint
+      x = coord[iPoint*3];
+      y = coord[iPoint*3+1];
+      z = coord[iPoint*3+2];
       // 2) accumulate xMean,yMean,zMean
+      xMean += x;
+      yMean += y;
+      zMean += z;
       // 3) increment nPointsCell
+      nPointsCell++;
       // 4) if(vMap!=nullptr)
       //    - map iPoint onto iSamplePoint
+      if(vMap!=nullptr) (*vMap)[iPoint] = iSamplePoint;
     }
     // normalize xMean,yMean,zMean
+    xMean /= nPointsCell;
+    yMean /= nPointsCell;
+    zMean /= nPointsCell;
 
     // find amongst the points contained in the cell, the closest to the mean
     dMin2 = std::numeric_limits<float>::max();
     iPointMin = -1;
     for(iPoint=iPointFirst;iPoint>=0;iPoint=_next[iPoint]) {
       // TODO ,,,
+      x = coord[iPoint*3];
+      y = coord[iPoint*3+1];
+      z = coord[iPoint*3+2];
+      dx = pow(x - xMean, 2);
+      dy = pow(y - yMean, 2);
+      dz = pow(z - zMean, 2);
+      dPoint2 = dx + dy + dz;
+      if(dPoint2 < dMin2){
+        dMin2 = dPoint2;
+        iPointMin = iPoint;
+      }
     }
     // push_back the coords of iPointMin onto the coordSample array
+    x = coord[iPointMin*3];
+    y = coord[iPointMin*3+1];
+    z = coord[iPointMin*3+2];
+    coordSample.push_back(x);
+    coordSample.push_back(y);
+    coordSample.push_back(z);
   }
   return true;
 }
@@ -251,6 +298,95 @@ bool HexGridPartition::sample
   // and pushing back the normal coordinates of iPointMin onto the
   // normalSample array
 
+  if(_coord==nullptr) return false;
+
+  coordSample.clear();
+  normalSample.clear();
+  // if vMap!=nullpointer, on output *vMap maps input point indices
+  // onto output sample indices
+  if(vMap!=nullptr) {
+      // resize and initialize the output vMap
+      vMap->clear();
+      int nPoints = static_cast<int>(_coord->size()/3);
+      vMap->resize(nPoints,-1);
+  }
+
+  // int N=_resolution,n0=N,n1=N,n2=N,ix,iy,iz,iCell;
+  int k,iPointFirst,iPoint,nPointsCell,iPointMin,iSamplePoint;
+  float xMean,yMean,zMean,fPointsInCell,dx,dy,dz,dPoint2,dMin2;
+
+  const vector<float>& coord = *_coord;
+  float x,y,z;
+  const vector<float>& normal = *_normal;
+  float nx,ny,nz;
+
+  // traverse the cell of the _first map
+  map<int,int>::iterator iMap = _first.begin();
+  for(;iMap!=_first.end();iMap++) {
+      // iCell = iMap->first;
+
+      // if the points were properly inserted this value should be >=0
+      iPointFirst = iMap->second;
+
+      // get the next available coordSample index
+      iSamplePoint = static_cast<int>(coordSample.size()/3);
+
+      // count number of points in cell
+      // and mean coords of points contained in the cell
+      nPointsCell = 0;
+      xMean=yMean=zMean=0.0f;
+      for(iPoint=iPointFirst;iPoint>=0;iPoint=_next[iPoint]) {
+          // 1) get x,y,z coords of iPoint
+          x = coord[iPoint*3];
+          y = coord[iPoint*3+1];
+          z = coord[iPoint*3+2];
+          // 2) accumulate xMean,yMean,zMean
+          xMean += x;
+          yMean += y;
+          zMean += z;
+          // 3) increment nPointsCell
+          nPointsCell++;
+          // 4) if(vMap!=nullptr)
+          //    - map iPoint onto iSamplePoint
+          if(vMap!=nullptr) (*vMap)[iPoint] = iSamplePoint;
+      }
+      // normalize xMean,yMean,zMean
+      xMean /= nPointsCell;
+      yMean /= nPointsCell;
+      zMean /= nPointsCell;
+
+      // find amongst the points contained in the cell, the closest to the mean
+      dMin2 = std::numeric_limits<float>::max();
+      iPointMin = -1;
+      for(iPoint=iPointFirst;iPoint>=0;iPoint=_next[iPoint]) {
+          // TODO ,,,
+          x = coord[iPoint*3];
+          y = coord[iPoint*3+1];
+          z = coord[iPoint*3+2];
+          dx = pow(x - xMean, 2);
+          dy = pow(y - yMean, 2);
+          dz = pow(z - zMean, 2);
+          dPoint2 = dx + dy + dz;
+          if(dPoint2 < dMin2){
+              dMin2 = dPoint2;
+              iPointMin = iPoint;
+          }
+      }
+      // push_back the coords of iPointMin onto the coordSample array
+      x = coord[iPointMin*3];
+      y = coord[iPointMin*3+1];
+      z = coord[iPointMin*3+2];
+      coordSample.push_back(x);
+      coordSample.push_back(y);
+      coordSample.push_back(z);
+
+      nx = normal[iPointMin*3];
+      ny = normal[iPointMin*3+1];
+      nz = normal[iPointMin*3+2];
+      normalSample.push_back(nx);
+      normalSample.push_back(ny);
+      normalSample.push_back(nz);
+  }
   return true;
 }
 

@@ -720,6 +720,25 @@ void Optimization::clusterVerticesApply() {
   vector<bool> deleteFace(nF,false);
 
   // TODO
+  for(iF=iC0=iC1=0;iC1<nC;iC1++) {
+    if(coordIndex[iC1]>=0) continue;
+    int iV0, iV1;
+    for(int iC=iC0; iC<iC1; iC++){
+      iV0 = pmesh->getSrc(iC);
+      if(iC==iC0){
+        iV1 = pmesh->getSrc(iC1);
+      } else {
+        iV1 = pmesh->getSrc(iC-1);
+      }
+      //Si la arista fue colapsada (es decir, sus dos vértices se mapean al mismo vértice nuevo), la cara se borra
+      if(vertexMap[iV0]==vertexMap[iV1]){
+        deleteFace[iF] = true;
+        break;
+      }
+    }
+
+    iC0 = iC1+1; iF++;
+  }
 
   // generate output coordIndex array
   vector<int> newCoordIndex;
@@ -734,7 +753,13 @@ void Optimization::clusterVerticesApply() {
       // - for each corner of the face in coordIndex, get the input vertex index
       // - map the input vertex input onto a sample index
       // - push back the sample index onto the newCoordIndex array
-      // - don't forget to push back a -1 
+      // - don't forget to push back a -1
+      for(int iC=iC0; iC<iC1; iC++){
+        int iV = pmesh->getSrc(iC);
+        int iS = vertexMap[iV];
+        newCoordIndex.push_back(iS);
+      }
+      newCoordIndex.push_back(-1);
     }
     iC0 = iC1+1; iF++;
   }
