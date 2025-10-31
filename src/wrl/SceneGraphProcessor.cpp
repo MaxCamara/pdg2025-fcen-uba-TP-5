@@ -44,6 +44,8 @@
 #include "core/Graph.hpp"
 #include "core/IsoSurf.hpp"
 
+#include "io/StrException.hpp"
+
 const int SceneGraphProcessor::_hexGridEdge[12][2] = {
   {0,4}, {1,5}, {2,6}, {3,7},
   {0,2}, {1,3}, {4,6}, {5,7},
@@ -1295,29 +1297,188 @@ void SceneGraphProcessor::fitMultiplePlanes
   // vector<float>& coordPoints = points->getCoord();
   // vector<float>& normalPoints = points->getNormal();
 
+  IndexedFaceSet* points  = _getNamedShapeIFS("POINTS",true);
+    //Si el ifs fue recién creado, pasa el siguiente chequeo por defecto
+  if(points->getNormalBinding()!=IndexedFaceSet::PB_PER_VERTEX) return;
+  vector<float>& coordPoints  = points->getCoord();
+  vector<float>& normalPoints = points->getNormal();
+
   // 2) find or create the SURFACE Shape node, and clear the
   // IndexedFaceSet stored in the geometry field
+
+  IndexedFaceSet* surface  = _getNamedShapeIFS("SURFACE",true);
+  surface->clear();
 
   // 3) the argument vector<float>&f will contain one scalar values;
   // clear it here
 
+  f.clear();
+
   // 4) if the bounding box is empty (size.x==size.y==size.z==0) or scale<=0
-  // throw an StrException 
+  // throw an StrException
+
+  try{
+      if(size.x<=0.0f || size.y<=0.0f || size.z<=0.0f || scale<=0.0f) {
+          throw new StrException("Dimensiones erróneas para la bounding box");
+          return;
+      }
+
+  } catch(StrException* e) {
+      fprintf(stderr,"SceneGraphProcessor | ERROR | %s\n",e->what());
+      delete e;
+  }
 
   // 5) compute the coordinates of the 8 vertices of the scaled bounding box
+
+  float dx=size.x/2.0f, dy=size.y/2.0f, dz=size.z/2.0f;
+  float dMax = dx; if(dy>dMax) dMax=dy; if(dz>dMax) dMax=dz;
+  if(cube      ) { dx = dy = dz = dMax; }
+  if(scale>0.0f) { dx *= scale; dy *= scale; dz *= scale; }
+  float x0 = center.x-dx; float y0 = center.y-dy; float z0 = center.z-dz;
+  float x1 = center.x+dx; float y1 = center.y+dy; float z1 = center.z+dz;
+  Vec3f min(x0,y0,z0);
+  Vec3f max(x1,y1,z1);
+  Vec3f v[8]; // bbox corner coordinates
+  for(int i=0;i<8;i++) {
+      v[i].z = (((i>>0)&0x1)==0)?z0:z1;
+      v[i].y = (((i>>1)&0x1)==0)?y0:y1;
+      v[i].x = (((i>>2)&0x1)==0)?x0:x1;
+  }
 
   // 6) create a partition of the points as an array of linked lists
 
   // _createPartition(min,max,depth,coordPoints);
+  _createPartition(min,max,depth,coordPoints);
 
   // 7) for each occupied cell, fit a plane, and compute the
   // isosurface polygon within the corresponding cube; accumulate
   // polygons as vertices faces, and face normals of the SURFACE
   // IndexedFaceSet
 
+  vector<float> coordCell;
+  vector<float> normalCell;
+  int ix, iy, iz, iCell, iPnext;
+  int N = _nGrid;
+  float x, y, z;
+  Vec3f minCell;
+  Vec3f maxCell;
+  Vec4f fCell;
+  Vec3f vCell[8];
+  float FCell[8];
+  bool  bCell[8];
+  int iECell[12];  //Arreglo de correspondencia de aristas a isovértices
+  float tj,tk;
+  int iV,i,j,k;
+  int nFaces;
+
+  //Obtengo la tabla de aristas
+  const int (*edge)[2] = IsoSurf::getEdgeTable();
+  //Obtengo los vectores coord, coordIndex y normal de la superficie resultado, que están vacíos
+  vector<float>& coordIfs = surface->getCoord();
+  vector<int>& coordIndexIfs = surface->getCoordIndex();
+  vector<float>& normalIfs = surface->getNormal();
+
+  for(ix=0; ix<N; ix++){
+    for(iy=0; iy<N; iy++){
+      for(iz=0; iz<N; iz++){
+        iCell = ix+N*(iy+N*iz);
+        //iPnext = *(_first+iCell);
+        iPnext = _first[iCell];
+        //Si la posición de _first correspondiente a iCell contiene -1, la celda no tiene puntos
+        if(iPnext==-1) continue;
+
+        //Calculo las posiciones máxima y mínima de la celda
+        minCell.x = ((N-ix )*min.x+(ix )*max.x)/(N);
+        maxCell.x = ((N-ix-1)*min.x+(ix+1)*max.x)/(N);
+        minCell.y = ((N-iy )*min.y+(iy )*max.y)/(N);
+        maxCell.y = ((N-iy-1)*min.y+(iy+1)*max.y)/(N);
+        minCell.z = ((N-iz )*min.z+(iz )*max.z)/(N);
+        maxCell.z = ((N-iz-1)*min.z+(iz+1)*max.z)/(N);
+
+        //Me guardo las coordenadas y las normales de los puntos en la celda
+        //Esto evita que la función meanFit tenga que recorrer todos los puntos y chequear si están en la celda
+        while(iPnext!=-1){
+          coordCell.push_back(coordPoints[iPnext*3]);
+          coordCell.push_back(coordPoints[iPnext*3+1]);
+          coordCell.push_back(coordPoints[iPnext*3+2]);
+          normalCell.push_back(normalPoints[iPnext*3]);
+          normalCell.push_back(normalPoints[iPnext*3+1]);
+          normalCell.push_back(normalPoints[iPnext*3+2]);
+
+          iPnext = *(_next + iPnext);
+        }
+
+        //Almaceno en f el plano ajustado a los puntos dentro de la celda
+        meanFit(coordCell,normalCell,minCell,maxCell,fCell);
+
+        f.push_back(fCell.x);
+        f.push_back(fCell.y);
+        f.push_back(fCell.z);
+        f.push_back(fCell.w);
+
+        //Almaceno en vCell las coordenadas de los vértices de la celda
+        for(int i=0;i<8;i++) {
+          vCell[i].z = (((i>>0)&0x1)==0)?minCell.z:maxCell.z;
+          vCell[i].y = (((i>>1)&0x1)==0)?minCell.y:maxCell.y;
+          vCell[i].x = (((i>>2)&0x1)==0)?minCell.x:maxCell.x;
+        }
+
+        //Almaceno en FCell el valor que toma la función definida en f en cada vértice de la celda
+        //Y almaceno en bCell un valor booleano que vale true si la f es negativa en ese punto y false si no
+        for(int i=0;i<8;i++) {
+            x = vCell[i].x;
+            y = vCell[i].y;
+            z = vCell[i].z;
+            FCell[i] = x*fCell.x + y*fCell.y + z*fCell.z + fCell.w;
+            bCell[i] = FCell[i]<0.0f;
+        }
+
+        // Computo las coordenadas de los isovértices
+        for(i=0;i<12;i++) {
+            iV   = -1;
+            j    = edge[i][0];
+            k    = edge[i][1];
+            //Si la función f tiene distinto signo en los vértices de la arista (j,k), computo un isovértice en la arista
+            if(bCell[j]!=bCell[k]) {
+                // create new vertex index
+                iV = (int)((coordIfs.size()/3));
+                // isovertex coordinates
+                tk = FCell[j]/(FCell[j]-FCell[k]);
+                tj = FCell[k]/(FCell[k]-FCell[j]);
+                x  = tj*vCell[j].x+tk*vCell[k].x;
+                y  = tj*vCell[j].y+tk*vCell[k].y;
+                z  = tj*vCell[j].z+tk*vCell[k].z;
+                //Agrego el isovértice al arreglo coord de la superficie
+                coordIfs.push_back(x);
+                coordIfs.push_back(y);
+                coordIfs.push_back(z);
+            }
+            iECell[i] = iV;
+        }
+
+        //Usando la tabla de caras, construyo las caras que unen a los isovértices y las guardo en el coordIndex de la superficie
+        nFaces = IsoSurf::makeCellFaces(bCell,iECell,coordIndexIfs);
+
+        // save plane normal vector as face normal
+        surface->setNormalPerVertex(false);
+
+        for(i=0; i<nFaces; i++){
+            normalIfs.push_back(fCell.x);
+            normalIfs.push_back(fCell.y);
+            normalIfs.push_back(fCell.z);
+        }
+
+        //Cuando termino de trabajar la celda, vacío sus vectores de coordenadas y normales para reusarlos
+        coordCell.clear();
+        normalCell.clear();
+      }
+    }
+  }
+
   // 8) delete partition
 
   // _deletePartition();
+  _deletePartition();
 }
 
 //////////////////////////////////////////////////////////////////////
