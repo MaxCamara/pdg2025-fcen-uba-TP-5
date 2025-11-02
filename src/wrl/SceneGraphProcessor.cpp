@@ -1382,7 +1382,6 @@ void SceneGraphProcessor::fitMultiplePlanes
     for(iy=0; iy<N; iy++){
       for(iz=0; iz<N; iz++){
         iCell = ix+N*(iy+N*iz);
-        //iPnext = *(_first+iCell);
         iPnext = _first[iCell];
         //Si la posición de _first correspondiente a iCell contiene -1, la celda no tiene puntos
         if(iPnext==-1) continue;
@@ -1405,7 +1404,7 @@ void SceneGraphProcessor::fitMultiplePlanes
           normalCell.push_back(normalPoints[iPnext*3+1]);
           normalCell.push_back(normalPoints[iPnext*3+2]);
 
-          iPnext = *(_next + iPnext);
+          iPnext = _next[iPnext];
         }
 
         //Almaceno en f el plano ajustado a los puntos dentro de la celda
@@ -1462,6 +1461,7 @@ void SceneGraphProcessor::fitMultiplePlanes
         // save plane normal vector as face normal
         surface->setNormalPerVertex(false);
 
+        //Guardo la normal del plano generado como la normal de las caras
         for(i=0; i<nFaces; i++){
             normalIfs.push_back(fCell.x);
             normalIfs.push_back(fCell.y);
@@ -1506,6 +1506,241 @@ void SceneGraphProcessor::fitContinuous
 
   // 5) fill the SURFACE IndexedFaceSet exactly as in the
   // fitMultiplePlanes method
+
+  IndexedFaceSet* points  = _getNamedShapeIFS("POINTS",true);
+  if(points->getNormalBinding()!=IndexedFaceSet::PB_PER_VERTEX) return;
+  vector<float>& coordPoints  = points->getCoord();
+  vector<float>& normalPoints = points->getNormal();
+
+  IndexedFaceSet* surface  = _getNamedShapeIFS("SURFACE",true);
+  surface->clear();
+
+  //Vacío el parámetro fGrid
+  fGrid.clear();
+
+  try{
+      if(size.x<=0.0f || size.y<=0.0f || size.z<=0.0f || scale<=0.0f) {
+          throw new StrException("Dimensiones erróneas para la bounding box");
+          return;
+      }
+
+  } catch(StrException* e) {
+      fprintf(stderr,"SceneGraphProcessor | ERROR | %s\n",e->what());
+      delete e;
+  }
+
+  float dx=size.x/2.0f, dy=size.y/2.0f, dz=size.z/2.0f;
+  float dMax = dx; if(dy>dMax) dMax=dy; if(dz>dMax) dMax=dz;
+  if(cube      ) { dx = dy = dz = dMax; }
+  if(scale>0.0f) { dx *= scale; dy *= scale; dz *= scale; }
+  float x0 = center.x-dx; float y0 = center.y-dy; float z0 = center.z-dz;
+  float x1 = center.x+dx; float y1 = center.y+dy; float z1 = center.z+dz;
+  Vec3f min(x0,y0,z0);
+  Vec3f max(x1,y1,z1);
+  Vec3f v[8];
+  for(int i=0;i<8;i++) {
+      v[i].z = (((i>>0)&0x1)==0)?z0:z1;
+      v[i].y = (((i>>1)&0x1)==0)?y0:y1;
+      v[i].x = (((i>>2)&0x1)==0)?x0:x1;
+  }
+
+  _createPartition(min,max,depth,coordPoints);
+
+  // for each occupied cell, fit a plane, and compute the
+  // isosurface polygon within the corresponding cube; accumulate
+  // polygons as vertices faces, and face normals of the SURFACE
+  // IndexedFaceSet
+
+  vector<float> coordCell;
+  vector<float> normalCell;
+  int ix, iy, iz, iCell, iPnext;
+  int iVx, iVy, iVz, iVGrid;  //Variables para el cálculo de los índices de los vértices de la grilla
+  int N = _nGrid;
+  float x, y, z;
+  Vec3f minCell;
+  Vec3f maxCell;
+  Vec4f fCell;
+  vector<float> fCellNormal(3*N*N*N, 0); //Vector para almacenar las coordenadas de la normal de cada plano
+
+  int nGridVertices = (N+1)*(N+1)*(N+1);
+  //Uso el parámetro fGrid para almacenar el promedio de los valores de f en cada vértice de la grilla
+  //Creo el arreglo wGrid para almacenar el peso de cada vértice (la cantidad de celdas incidentes al mismo)
+  float* wGrid = new float[nGridVertices];
+
+  // initialize to 0’s
+  for(int i=0; i<nGridVertices; i++){
+      wGrid[i] = 0;
+      fGrid.push_back(0);
+  }
+
+  for(ix=0; ix<N; ix++){
+      for(iy=0; iy<N; iy++){
+          for(iz=0; iz<N; iz++){
+              iCell = ix+N*(iy+N*iz);
+              iPnext = _first[iCell];
+              if(iPnext==-1) continue;
+
+              // fit linear function Vec4f f to the points contained in the cell
+
+              minCell.x = ((N-ix )*min.x+(ix )*max.x)/(N);
+              maxCell.x = ((N-ix-1)*min.x+(ix+1)*max.x)/(N);
+              minCell.y = ((N-iy )*min.y+(iy )*max.y)/(N);
+              maxCell.y = ((N-iy-1)*min.y+(iy+1)*max.y)/(N);
+              minCell.z = ((N-iz )*min.z+(iz )*max.z)/(N);
+              maxCell.z = ((N-iz-1)*min.z+(iz+1)*max.z)/(N);
+
+              while(iPnext!=-1){
+                  coordCell.push_back(coordPoints[iPnext*3]);
+                  coordCell.push_back(coordPoints[iPnext*3+1]);
+                  coordCell.push_back(coordPoints[iPnext*3+2]);
+                  normalCell.push_back(normalPoints[iPnext*3]);
+                  normalCell.push_back(normalPoints[iPnext*3+1]);
+                  normalCell.push_back(normalPoints[iPnext*3+2]);
+
+                  iPnext = _next[iPnext];
+              }
+
+              meanFit(coordCell,normalCell,minCell,maxCell,fCell);
+
+              //Me guardo la normal del plano generado para después usarla como la normal de las caras generadas
+              fCellNormal[3*iCell] = fCell.x;
+              fCellNormal[3*iCell+1] = fCell.y;
+              fCellNormal[3*iCell+2] = fCell.z;
+
+              // for each corner of the cell {
+              //     determine the coordinates of the corner
+              //     evaluate the linear function
+              //     determine the grid vertex index iV of the corner
+              //     add the evaluated value to fGrid[iV]
+              //     increment wGrid[iV] by one
+              //   }
+
+              for(int i=0;i<8;i++) {
+                  z = (((i>>0)&0x1)==0)?minCell.z:maxCell.z;
+                  y = (((i>>1)&0x1)==0)?minCell.y:maxCell.y;
+                  x = (((i>>2)&0x1)==0)?minCell.x:maxCell.x;
+
+                  //Calculo el iV del vértice de la celda
+                  iVx = (x==minCell.x)?ix:ix+1;
+                  iVy = (y==minCell.y)?iy:iy+1;
+                  iVz = (z==minCell.z)?iz:iz+1;
+                  iVGrid = iVx+(N+1)*(iVy+(N+1)*iVz);
+
+                  fGrid[iVGrid] += x*fCell.x + y*fCell.y + z*fCell.z + fCell.w;
+                  wGrid[iVGrid]++;
+              }
+
+              //Cuando termino de trabajar la celda, vacío sus vectores de coordenadas y normales para reusarlos
+              coordCell.clear();
+              normalCell.clear();
+          }
+      }
+  }
+
+  // normalize function values
+  // for(iV=0;iV<nGridVertices;iV++)
+  //   if(wGridVertex[iV]>0.0f)
+  //   fGridVertex[iV] /= wGridVertex[iV];
+
+  for(iVGrid=0; iVGrid<nGridVertices; iVGrid++){
+      if(wGrid[iVGrid]>0.0f) fGrid[iVGrid] /= wGrid[iVGrid];
+  }
+
+  // for non empty each cell (i,j,k) {
+  //   for(i=0;i<8;i++) { // for each corner of the cell
+  //     determine the grid vertex index iV of the corner
+  //     get the function value fGridVertex[iV] and store it in F[i]
+  //     determine the function signs B[i] = (F[i]<0);
+  //   }
+  //   same as for fitSimplePlane() and fitMultiplePlanes()
+  // }
+
+  float FCell[8];
+  bool  bCell[8];
+  Vec3f vCell[8];
+  int iECell[12];
+  float tj,tk;
+  int iV,j,k;
+  int nFaces;
+
+  //Obtengo la tabla de aristas
+  const int (*edge)[2] = IsoSurf::getEdgeTable();
+  //Obtengo los vectores coord, coordIndex y normal de la superficie resultado, que están vacíos
+  vector<float>& coordIfs = surface->getCoord();
+  vector<int>& coordIndexIfs = surface->getCoordIndex();
+  vector<float>& normalIfs = surface->getNormal();
+
+  for(ix=0; ix<N; ix++){
+      for(iy=0; iy<N; iy++){
+          for(iz=0; iz<N; iz++){
+              iCell = ix+N*(iy+N*iz);
+              iPnext = _first[iCell];
+              if(iPnext==-1) continue;
+
+              minCell.x = ((N-ix )*min.x+(ix )*max.x)/(N);
+              maxCell.x = ((N-ix-1)*min.x+(ix+1)*max.x)/(N);
+              minCell.y = ((N-iy )*min.y+(iy )*max.y)/(N);
+              maxCell.y = ((N-iy-1)*min.y+(iy+1)*max.y)/(N);
+              minCell.z = ((N-iz )*min.z+(iz )*max.z)/(N);
+              maxCell.z = ((N-iz-1)*min.z+(iz+1)*max.z)/(N);
+
+              for(int i=0;i<8;i++) {
+                  vCell[i].z = (((i>>0)&0x1)==0)?minCell.z:maxCell.z;
+                  vCell[i].y = (((i>>1)&0x1)==0)?minCell.y:maxCell.y;
+                  vCell[i].x = (((i>>2)&0x1)==0)?minCell.x:maxCell.x;
+              }
+
+              for(int i=0;i<8;i++) {
+                  z = vCell[i].z;
+                  y = vCell[i].y;
+                  x = vCell[i].x;
+
+                  iVx = (x==minCell.x)?ix:ix+1;
+                  iVy = (y==minCell.y)?iy:iy+1;
+                  iVz = (z==minCell.z)?iz:iz+1;
+                  iVGrid = iVx+(N+1)*(iVy+(N+1)*iVz);
+
+                  FCell[i] = fGrid[iVGrid];
+                  bCell[i] = FCell[i]<0.0f;
+              }
+
+              for(int i=0;i<12;i++) {
+                  iV   = -1;
+                  j    = edge[i][0];
+                  k    = edge[i][1];
+                  if(bCell[j]!=bCell[k]) {
+                      iV = (int)((coordIfs.size()/3));
+
+                      tk = FCell[j]/(FCell[j]-FCell[k]);
+                      tj = FCell[k]/(FCell[k]-FCell[j]);
+                      x  = tj*vCell[j].x+tk*vCell[k].x;
+                      y  = tj*vCell[j].y+tk*vCell[k].y;
+                      z  = tj*vCell[j].z+tk*vCell[k].z;
+
+                      coordIfs.push_back(x);
+                      coordIfs.push_back(y);
+                      coordIfs.push_back(z);
+                  }
+                  iECell[i] = iV;
+              }
+
+              nFaces = IsoSurf::makeCellFaces(bCell,iECell,coordIndexIfs);
+
+              surface->setNormalPerVertex(false);
+
+              //Uso la normal del plano iCell almacenada en el vector fCellNormal
+              for(int i=0; i<nFaces; i++){
+                  normalIfs.push_back(fCellNormal[3*iCell]);
+                  normalIfs.push_back(fCellNormal[3*iCell+1]);
+                  normalIfs.push_back(fCellNormal[3*iCell+2]);
+              }
+          }
+      }
+  }
+
+  //Borro la partición y libero la memoria del arreglo wGrid;
+  _deletePartition();
+  delete[] wGrid;
 
 }
 
