@@ -120,6 +120,7 @@ void NchEstimate::run() {
       }
       delete thread[th];
     }
+    delete[] thread;
 
   } else /* if(singleThread==false) */ {
 
@@ -136,13 +137,33 @@ void NchEstimate::run() {
     for(i=0;i<nPoints;i++) {
 
       // get the (x,y,z) coordinates to the i-th point from the _coord array
+      p0i = _coord[i*3];
+      p1i = _coord[i*3+1];
+      p2i = _coord[i*3+2];
+
+      //Me guardo las coordenadas de la normal
+      n0i = _normal[i*3];
+      n1i = _normal[i*3+1];
+      n2i = _normal[i*3+2];
 
       rho_i  = 0.0f;
       for(j=0;j<nPoints;j++) {
         if(j==i) continue;
 
         // TODO
-        // - update the _rho[i] parameter 
+        // - update the _rho[i] parameter
+        p0j = _coord[j*3];
+        p1j = _coord[j*3+1];
+        p2j = _coord[j*3+2];
+
+        d0 = p0j-p0i;
+        d1 = p1j-p1i;
+        d2 = p2j-p2i;
+
+        a = n0i*d0 + n1i*d1 + n2i*d2;
+        b = pow(d0,2) + pow(d1,2) + pow(d2,2);
+
+        if(a - rho_i*b > 0.0f) rho_i = a/b;
 
       }
       _rho[i] = rho_i;

@@ -40,6 +40,9 @@
 #include "NchThread.hpp"
 #include <QMutex>
 
+//Para la función de potencia usada en el cálculo de rho
+#include<cmath>
+
 int NchThread::_progressValue = 0;
 
 NchThread::NchThread
@@ -116,6 +119,14 @@ void NchThread::_runEstimate() {
   for(i=_id;i<nPoints;i+=_nThreads) {
 
     // get the (x,y,z) coordinates to the i-th point from the _coord array
+    p0i = _coord[i*3];
+    p1i = _coord[i*3+1];
+    p2i = _coord[i*3+2];
+
+    //Me guardo las coordenadas de la normal
+    n0i = _normal[i*3];
+    n1i = _normal[i*3+1];
+    n2i = _normal[i*3+2];
 
     // TODO
     // - estimate the _rho[i] parameter
@@ -125,7 +136,19 @@ void NchThread::_runEstimate() {
       if(j==i) continue;
 
       // TODO
-      // - update the _rho[i] parameter 
+      // - update the _rho[i] parameter
+      p0j = _coord[j*3];
+      p1j = _coord[j*3+1];
+      p2j = _coord[j*3+2];
+
+      d0 = p0j-p0i;
+      d1 = p1j-p1i;
+      d2 = p2j-p2i;
+
+      a = n0i*d0 + n1i*d1 + n2i*d2;
+      b = pow(d0,2) + pow(d1,2) + pow(d2,2);
+
+      if(a - rho_i*b > 0.0f) rho_i = a/b;
 
     }
     _rho[i] = rho_i;
@@ -184,6 +207,23 @@ void NchThread::_runEvaluateRegular() {
         for(i=0;i<nPoints;i++) {
 
           // TODO ...
+            p0i = _coord[i*3];
+            p1i = _coord[i*3+1];
+            p2i = _coord[i*3+2];
+
+            n0i = _normal[i*3];
+            n1i = _normal[i*3+1];
+            n2i = _normal[i*3+2];
+
+            d0 = x-p0i;
+            d1 = y-p1i;
+            d2 = z-p2i;
+
+            a = n0i*d0 + n1i*d1 + n2i*d2;
+            b = pow(d0,2) + pow(d1,2) + pow(d2,2);
+            c = a - _rho[i]*b;
+
+            if(c > f_iV) f_iV = c;
 
         }
         (*_fGrid)[iV] = f_iV;
@@ -225,6 +265,9 @@ void NchThread::_runEvaluateAdaptive() {
     
     // get the (x,y,z) coordinates of the iVgrid vertex from the
     // (*_coordGridPtr) array
+    x = (*_coordGridPtr)[iVgrid*3];
+    y = (*_coordGridPtr)[iVgrid*3+1];
+    z = (*_coordGridPtr)[iVgrid*3+2];
 
     // inner loop same as in _runEvaluateRegular()
 
@@ -236,6 +279,23 @@ void NchThread::_runEvaluateAdaptive() {
     for(i=0;i<nPoints;i++) {
 
       // TODO ...
+        p0i = _coord[i*3];
+        p1i = _coord[i*3+1];
+        p2i = _coord[i*3+2];
+
+        n0i = _normal[i*3];
+        n1i = _normal[i*3+1];
+        n2i = _normal[i*3+2];
+
+        d0 = x-p0i;
+        d1 = y-p1i;
+        d2 = z-p2i;
+
+        a = n0i*d0 + n1i*d1 + n2i*d2;
+        b = pow(d0,2) + pow(d1,2) + pow(d2,2);
+        c = a - _rho[i]*b;
+
+        if(c > f_iV) f_iV = c;
 
     }
     (*_fGrid)[iV] = f_iV;

@@ -56,6 +56,8 @@ QProgressBar* NchProcessor::_progressBar = nullptr;
 void NchProcessor::setProgressBar(QProgressBar* progressBar) {
   _progressBar = progressBar;
   NchEstimate::setProgressBar(_progressBar);
+  //Agrego para que la evaluación nch también tenga la barra de progreso
+  NchEvaluate::setProgressBar(_progressBar);
 }
 
 NchProcessor::NchProcessor
@@ -168,11 +170,32 @@ float NchProcessor::nchEvaluate
 
   // Hint: use the pseudo-code from the lecture slides
 
+  float p0i,p1i,p2i,n0i,n1i,n2i,rho_i,d0,d1,d2,f_i,a,b;
+
   // initialize fx to the most negative number
   float fx = -std::numeric_limits<float>::max();
   for(int iPoint=0;iPoint<nPoints;iPoint++) {
 
     // TODO ...
+      p0i = coord[iPoint*3];
+      p1i = coord[iPoint*3+1];
+      p2i = coord[iPoint*3+2];
+
+      n0i = normal[iPoint*3];
+      n1i = normal[iPoint*3+1];
+      n2i = normal[iPoint*3+2];
+
+      d0 = x0-p0i;
+      d1 = x1-p1i;
+      d2 = x2-p2i;
+
+      rho_i = nchRhos[iPoint];
+
+      a = n0i*d0 + n1i*d1 + n2i*d2;
+      b = pow(d0,2) + pow(d1,2) + pow(d2,2);
+      f_i = a - rho_i*b;
+
+      if(f_i > fx) fx = f_i;
 
   }
   
