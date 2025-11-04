@@ -156,9 +156,9 @@ bool HexGridPartition::insertPoints(const vector<float>& coord) {
     // 2) if the points is not contained in the bounding box
     //    - increase the _nPointsOutsideBox variable
     //    - do not insert the point in any list
-    if(x < _min.x || x >= _max.x ||
-       y < _min.y || y >= _max.y ||
-       z < _min.x || z >= _max.x){
+    if(x < _min.x || x > _max.x ||
+       y < _min.y || y > _max.y ||
+       z < _min.x || z > _max.x){
         _nPointsOutsideBox++;
         continue;
     }
