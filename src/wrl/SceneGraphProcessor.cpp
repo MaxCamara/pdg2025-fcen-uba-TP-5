@@ -1762,7 +1762,6 @@ void SceneGraphProcessor::fitWatertight
   // More details in the file DG2025-FCEN-TP5-Notes.pdf
   
   // 1) get the scene graph node named "POINTS"
-  // IndexedFaceSet* points = ...
   IndexedFaceSet* points  = _getNamedShapeIFS("POINTS", false);
 
   // 2) if there is no such node return without doing anything
@@ -1774,15 +1773,11 @@ void SceneGraphProcessor::fitWatertight
   if(points->getNormalBinding()!=IndexedFaceSet::PB_PER_VERTEX) return;
 
   // 4) get the coord and normal vectors from the points node 
-  // vector<float>& coordPoints = ...
-  // vector<float>& normalPoints = ...
   vector<float>& coordPoints  = points->getCoord();
   vector<float>& normalPoints = points->getNormal();
 
   // 5) from the center, size, and scale arguments, compute the min &
   // max corners of the bounding box
-  // Vec3f min;
-  // Vec3f max;
   float dx=size.x/2.0f, dy=size.y/2.0f, dz=size.z/2.0f;
   float dMax = dx; if(dy>dMax) dMax=dy; if(dz>dMax) dMax=dz;
   if(isCube      ) { dx = dy = dz = dMax; }
@@ -1799,32 +1794,22 @@ void SceneGraphProcessor::fitWatertight
   }
   
   // 6) create a partition of the points as an array of linked lists
-  // _createPartition(min,max,depth,coordPoints);
   _createPartition(min,max,depth,coordPoints);
 
   // 7) determine the total number of grid vertices as a function of
   // _nGrid 
-  // int nGridVertices = ...
   int N = _nGrid;
   int nGridVertices = (N+1)*(N+1)*(N+1);
 
   // 7) initialize fGrid with zeros
-  // fGrid.clear();
-  // fGrid.insert(fGrid.end(),nGridVertices,0.0f);
   fGrid.clear();
   fGrid.insert(fGrid.end(),nGridVertices,0.0f);
 
   // 8) create a temporary array of the same size to accumulate weights
-  // vector<float> wGrid;
-  // wGrid.insert(wGrid.end(),nGridVertices,0.0f);
   vector<float> wGrid;
   wGrid.insert(wGrid.end(),nGridVertices,0.0f);
 
   // 9) allocate arrays to do the local linear fit
-  // Vec4f fCell;
-  // Vec3f minCell,maxCell;
-  // vector<float> coordCell;
-  // vector<float> normalCell;
   Vec4f fCell;
   Vec3f minCell,maxCell;
   vector<float> coordCell;
@@ -1836,43 +1821,6 @@ void SceneGraphProcessor::fitWatertight
   float x, y, z;
 
   // 10) accumulate grid vertex funtion values
-  // int N = _nGrid;
-  // int nonEmptyCells = 0;
-  // for(iCell=iz=0;iz<N;iz++) {
-  //   minCell.z = (((float)(N-iz  ))*z0+((float)(iz  ))*z1)/((float)N);
-  //   maxCell.z = (((float)(N-iz-1))*z0+((float)(iz+1))*z1)/((float)N);
-  //   for(iy=0;iy<N;iy++) {
-  //     minCell.y = (((float)(N-iy  ))*y0+((float)(iy  ))*y1)/((float)N);
-  //     maxCell.y = (((float)(N-iy-1))*y0+((float)(iy+1))*y1)/((float)N);
-  //     for(ix=0;ix<N;ix++,iCell++) {
-  //       minCell.x = (((float)(N-ix  ))*x0+((float)(ix  ))*x1)/((float)N);
-  //       maxCell.x = (((float)(N-ix-1))*x0+((float)(ix+1))*x1)/((float)N);
-  // 
-  //       if((iPoint=_first[iCell])>=0) { // cell iCell is not empty
-  //         nonEmptyCells++;
-  //
-  //         // 11) copy coord and normal values of points in cell onto cell arrays
-  //         coordCell.clear();
-  //         normalCell.clear();
-  //         nCell.x=nCell.y=nCell.z;
-  //         for(nPoints=0;iPoint>=0;iPoint=_next[iPoint]) {
-  //           // ...
-  //           // count the number of points in the cell here
-  //         }
-  //
-  //        // 12) fit a linear function to the points contained in the
-  //        // cell using the meanFit() method
-  //
-  //        // 13) evaluate the local linear function at each of the
-  //        // cell's eight vertices, accumulate the values in the
-  //        // corresponding entries of the fGrid vector, and increment
-  //        // the corresponding entry of the weights vector wGrid by 1
-  //
-  //       }
-  //     }
-  //   }
-  // }
-
   int nonEmptyCells = 0;
   for(iCell=iz=0;iz<N;iz++) {
     minCell.z = (((float)(N-iz  ))*z0+((float)(iz  ))*z1)/((float)N);
@@ -1892,7 +1840,6 @@ void SceneGraphProcessor::fitWatertight
           normalCell.clear();
 
           for(nPoints=0;iPoint>=0;iPoint=_next[iPoint]) {
-            // ...
             // count the number of points in the cell here
             coordCell.push_back(coordPoints[iPoint*3]);
             coordCell.push_back(coordPoints[iPoint*3+1]);
@@ -1935,23 +1882,10 @@ void SceneGraphProcessor::fitWatertight
   }
 
   // 14) arrays needded to implement the wavefront propagation algorithm
-  // vector<int> src;
-  // vector<int> dst;
   vector<int> src;
   vector<int> dst;
 
   // 15) normalize the fGrid values 
-  // for(iV=0;iV<nGridVertices;iV++)
-  //   if(wGrid[iV]>0.0f) { // only for vertices of occupied cells !
-  //     fGrid[iV] /= wGrid[iV];
-  //     // since the wGrid[iV] value is no longer needed, we will use it
-  //     // to indicate which vertices have defined function values
-  //     // (WGrid[iV]==-2), and which ones have undefined values
-  //     // (wGrid[iV]==0)
-  //     wGrid[iV] = -2.0f;
-  //     // save the grid vertex indices of occupied cells in a list 
-  //     src.push_back(iV);
-  //   }
   for(iV=0;iV<nGridVertices;iV++)
     if(wGrid[iV]>0.0f) { // only for vertices of occupied cells !
       fGrid[iV] /= wGrid[iV];
@@ -1965,54 +1899,6 @@ void SceneGraphProcessor::fitWatertight
     }
 
   // 16) extend vertex function values to all vertices by wavefront propagation
-  // int iV0,iV1;
-  // float fV0;
-  // while(src.size()>0) {
-  // 
-  //   // for each vertex in the wavefront
-  //   while(src.size()>0) {
-  //     iV0 = iV = src.back(); src.pop_back(); // wGrid[iV0]<0
-  //     // 17) compute the x,y,z integer coordinates of the vertex
-  //     // inverting the formula
-  //     // iV = ix+(N+1)*(iy+(N+1)*iz);
-  // 
-  //     // 18) get the vertex function falue from fGrid
-  //     
-  //     // 19) for each of the 6 neighbors jV of vertex iV in the grid,
-  //     // if vertex jV is inside the grid, and it does not have a
-  //     // defined function value yet (i.e. wGrid[jV]>=0), then
-  //     // 19.1) add the fGrid iV function value to the fGrid jV function
-  //     // value
-  //     // 19.2) increment the wGrid jV weight value by one
-  //     // 19.3) if this is the first visit to this grid vertex (i.e. if
-  //     // the wGrid jV value is equal to zero), save the jV index in
-  //     // the output wavefront list dst
-  // 
-  //   }
-  //   // 20) note that at this point the src list is empty, and the dst
-  //   // list in general is not empty
-  // 
-  //   // 20) normalize new function values for the grid vertices in the
-  //   // new wavefront, and create new wavefront
-  //   while(dst.size()>0) {
-  //     iV1 = dst.back(); dst.pop_back();
-  //     // if(wGrid[iV1]>0.0f) {
-  //     fGrid[iV1] /= wGrid[iV1];
-  //     // we use -2 to indicate the vertices of the occupied cells, and
-  //     // -1 the vertices of cells where the function has been defined
-  //     // by the wavefront propagation algorithm
-  //     wGrid[iV1] = -1.0f;
-  //     src.push_back(iV1);
-  //     // }
-  //   } // while(dst.size()>0)
-  // 
-  // } // while(source.size()>0)
-  // 
-  // // create output surface
-  // computeIsosurface(center,size,depth,scale,isCube,fGrid);
-  // 
-  // // we no longer need the point partition
-  // _deletePartition();
   int iV0,iV1;
   float fV0;
 
@@ -2113,14 +1999,53 @@ void SceneGraphProcessor::fitOptimalJacobi
   
   // steps 1) to 7) same as in fitWatertight()
 
-  // int n = nGridVertices;
+  // 1) get the scene graph node named "POINTS"
+  IndexedFaceSet* points  = _getNamedShapeIFS("POINTS", false);
+
+  // 2) if there is no such node return without doing anything
+  if(points==(IndexedFaceSet*)0) return;
+
+  // 3) if the node is found but it is empty, or it does not have
+  // normals per vertex, also return without doing anything
+  if(points->getNumberOfVertices()==0) return;
+  if(points->getNormalBinding()!=IndexedFaceSet::PB_PER_VERTEX) return;
+
+  // 4) get the coord and normal vectors from the points node
+  vector<float>& coordPoints  = points->getCoord();
+  vector<float>& normalPoints = points->getNormal();
+
+  // 5) from the center, size, and scale arguments, compute the min &
+  // max corners of the bounding box
+  float dx=size.x/2.0f, dy=size.y/2.0f, dz=size.z/2.0f;
+  float dMax = dx; if(dy>dMax) dMax=dy; if(dz>dMax) dMax=dz;
+  if(cube      ) { dx = dy = dz = dMax; }
+  if(scale>0.0f) { dx *= scale; dy *= scale; dz *= scale; }
+  float x0 = center.x-dx; float y0 = center.y-dy; float z0 = center.z-dz;
+  float x1 = center.x+dx; float y1 = center.y+dy; float z1 = center.z+dz;
+  Vec3f min(x0,y0,z0);
+  Vec3f max(x1,y1,z1);
+  Vec3f v[8];
+  for(int i=0;i<8;i++) {
+      v[i].z = (((i>>0)&0x1)==0)?z0:z1;
+      v[i].y = (((i>>1)&0x1)==0)?y0:y1;
+      v[i].x = (((i>>2)&0x1)==0)?x0:x1;
+  }
+
+  // 6) create a partition of the points as an array of linked lists
+  _createPartition(min,max,depth,coordPoints);
+
+  // 7) determine the total number of grid vertices as a function of
+  // _nGrid
+  int N = _nGrid;
+  int nGridVertices = (N+1)*(N+1)*(N+1);
+  int n = nGridVertices;
 
   // 8) these parameters should be exposed in the user interface, but
   // we will keep them here for now
-  //
-  // int    nIter  = 20;
-  // float  lambda = 0.10f;
-  // float  mu     = 0.5f;
+
+  int    nIter  = 20;
+  float  lambda = 0.10f;
+  float  mu     = 0.5f;
 
   // 9) allocate arrays for the function values, the displacements,
   // and the weights; we need a separate array for the function
@@ -2128,57 +2053,140 @@ void SceneGraphProcessor::fitOptimalJacobi
   // are needed to compute the displacements; when we finish we
   // replace the fGrid values by the f values and return
   //
-  // vector<float> f;
-  // vector<float> df;
-  // vector<float> wf;
-  // float fErr,wErr;
+  vector<float> f;
+  vector<float> df;
+  vector<float> wf;
+  float fErr,wErr;
 
-  // // 10) initialize the function values using the input values
-  // f.insert(f.end(),fGrid.begin(),fGrid.end());
+  // 10) initialize the function values using the input values
+  f.insert(f.end(),fGrid.begin(),fGrid.end());
 
-  // // 11) iterate nIter times
-  // for(int iIter=0;iIter<nIter;iIter++) {
-  //
-  //   // 12) zero accumulators df and wf
-  //
-  //   // Data term 
-  //
-  //   // 13) for each grid vertex iV of an occupied cell accumulate
-  //   // (fGrid[iV]-f[iV]) in the corresponding displacement, and
-  //   // increment the corresponding weight
-  //
-  //   // Regularization term
-  //
-  //   // 14) accumulate Laplacian
-  //   // for each grid edge (jV,kV) {
-  //   //   - accumulate lambda*(f[kV]-f[jV]) in df[jV] and increment the
-  //   //     corresponding weight
-  //   //   - accumulate lambda*(f[jV]-f[kV]) in df[kV] and increment the
-  //   //     corresponding weight
-  //   // }
-  //
-  //   // 15) normalize the displacements
-  //   for(iV=0;iV<n;iV++)
-  //     df[iV] /= wf[iV];
-  //
-  //   // 16) update the function values
-  //   for(iV=0;iV<n;iV++)
-  //     f[iV] += mu*df[iV];
-  //
-  //   // 17) measure and report the error
-  //   // ...
-  //   cerr << "    err = " << fErr << endl;
-  // }
-  //
-  // // 18) save result; fGrid becomes the output
-  // fGrid.clear();
-  // fGrid.insert(fGrid.end(),f.begin(),f.end());
+  //Variables a usar en el proceso iterativo:
+  Vec3f minCell,maxCell;
+  int ix, iy, iz, iCell;
+  int iVx, iVy, iVz, iV;
+  float x, y, z;
 
-  // // 19) update the output surface
-  // computeIsosurface(center,size,depth,scale,cube,fGrid);
+  // 11) iterate nIter times
+  for(int iIter=0;iIter<nIter;iIter++) {
 
-  // // 20) we no longer need the point partition
-  // _deletePartition();
+    // 12) zero accumulators df and wf
+    df.insert(df.end(),n,0.0f);
+    wf.insert(wf.end(),n,0.0f);
+
+    // Data term
+
+    // 13) for each grid vertex iV of an occupied cell accumulate
+    // (fGrid[iV]-f[iV]) in the corresponding displacement, and
+    // increment the corresponding weight
+
+    for(iCell=iz=0;iz<N;iz++) {
+        minCell.z = (((float)(N-iz  ))*z0+((float)(iz  ))*z1)/((float)N);
+        maxCell.z = (((float)(N-iz-1))*z0+((float)(iz+1))*z1)/((float)N);
+        for(iy=0;iy<N;iy++) {
+            minCell.y = (((float)(N-iy  ))*y0+((float)(iy  ))*y1)/((float)N);
+            maxCell.y = (((float)(N-iy-1))*y0+((float)(iy+1))*y1)/((float)N);
+            for(ix=0;ix<N;ix++,iCell++) {
+                minCell.x = (((float)(N-ix  ))*x0+((float)(ix  ))*x1)/((float)N);
+                maxCell.x = (((float)(N-ix-1))*x0+((float)(ix+1))*x1)/((float)N);
+
+                if(_first[iCell]>=0) { // cell iCell is not empty
+
+                    for(int i=0;i<8;i++) {
+                        //Calculo las coordenadas del i-ésimo vértice de la celda
+                        z = (((i>>0)&0x1)==0)?minCell.z:maxCell.z;
+                        y = (((i>>1)&0x1)==0)?minCell.y:maxCell.y;
+                        x = (((i>>2)&0x1)==0)?minCell.x:maxCell.x;
+
+                        //Calculo el iV del vértice de la celda
+                        iVx = (x==minCell.x)?ix:ix+1;
+                        iVy = (y==minCell.y)?iy:iy+1;
+                        iVz = (z==minCell.z)?iz:iz+1;
+                        iV = iVx+(N+1)*(iVy+(N+1)*iVz);
+
+                        //Solo acumulo si no visité el vértice iV en esta iteración
+                        if(wf[iV]==0){
+                            df[iV] += fGrid[iV]-f[iV];
+                            wf[iV] += 1.0f;
+                        }
+                    }
+
+                }
+            }
+        }
+    }
+
+    // Regularization term
+
+    // 14) accumulate Laplacian
+    // for each grid edge (jV,kV) {
+    //   - accumulate lambda*(f[kV]-f[jV]) in df[jV] and increment the
+    //     corresponding weight
+    //   - accumulate lambda*(f[jV]-f[kV]) in df[kV] and increment the
+    //     corresponding weight
+    // }
+
+    int jV, kV;
+
+    //Para acumular cada arista una única vez, recorro cada vértice de la grilla y acumulo solo
+    //las aristas que lo conectan con vértices de coordenadas mayores
+    for(iz=0;iz<=N;iz++) {
+        for(iy=0;iy<=N;iy++) {
+            for(ix=0;ix<=N;ix++) {
+                jV = ix+(N+1)*(iy+(N+1)*iz);
+
+                if(ix<N){
+                    kV = (ix+1)+(N+1)*(iy+(N+1)*iz);
+                    df[jV] += lambda*(f[kV]-f[jV]);
+                    wf[jV] += lambda;
+                    df[kV] += lambda*(f[jV]-f[kV]);
+                    wf[kV] += lambda;
+                }
+
+                if(iy<N){
+                    kV = ix+(N+1)*((iy+1)+(N+1)*iz);
+                    df[jV] += lambda*(f[kV]-f[jV]);
+                    wf[jV] += lambda;
+                    df[kV] += lambda*(f[jV]-f[kV]);
+                    wf[kV] += lambda;
+                }
+
+                if(iz<N){
+                    kV = ix+(N+1)*(iy+(N+1)*(iz+1));
+                    df[jV] += lambda*(f[kV]-f[jV]);
+                    wf[jV] += lambda;
+                    df[kV] += lambda*(f[jV]-f[kV]);
+                    wf[kV] += lambda;
+                }
+            }
+        }
+    }
+
+    // 15) normalize the displacements
+    for(iV=0;iV<n;iV++)
+      df[iV] /= wf[iV];
+
+    // 16) update the function values
+    for(iV=0;iV<n;iV++)
+      f[iV] += mu*df[iV];
+
+    // 17) measure and report the error
+    // ...
+    cerr << "    err = " << fErr << endl;
+  }
+
+  // 18) save result; fGrid becomes the output
+  fGrid.clear();
+  fGrid.insert(fGrid.end(),f.begin(),f.end());
+
+  // 19) update the output surface
+  IndexedFaceSet* surface  = _getNamedShapeIFS("SURFACE",true);
+  surface->clear();
+
+  IsoSurf::computeIsosurface(center,size,depth,scale,cube,fGrid,*surface);
+
+  // 20) we no longer need the point partition
+  _deletePartition();
 
   cerr << "}" << endl;
 }
