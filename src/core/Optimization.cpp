@@ -1020,18 +1020,6 @@ void Optimization::collapseEdgesApply
     vector<int>    vertexMap(nV,-1);
     vector<float>  newCoord;
 
-    // iVnew = 0
-    //
-    // assign a new vertex index to each collapsed edge
-    //
-    // for each selected edge iE {
-    //    assign new index iVnew to iV0 and iV1
-    //    compute newCoord_iVnew as the midpoint of coord_iV0 and coord_iV1
-    //    if(errorMetric==EdgeCollapseErrorMetric::GARLAND_HECKBERT) {
-    //      save old values of qVMatrix4x4
-    //    }
-    //    increment iVnew
-    // }
     int iVnew = 0;
     vector<bool> selectedEdgeVertex(nV, false);
     vector<bool> selectedEdgeFace(nF, false);
@@ -1067,24 +1055,6 @@ void Optimization::collapseEdgesApply
         iVnew++;
     }
 
-    //
-    // assign new vertex indices to vertices which are not ends of
-    // collapsed edges
-    //
-    // for each vertex iV {
-    //   if vertex iV is not end of a selected edge {
-    //      assign new index iVnew to iV
-    //      copy coord_iV onto newCoord_iVnew
-    //      if(errorMetric==EdgeCollapseErrorMetric::GARLAND_HECKBERT) {
-    //        use values stored in newQMatrix4x4 and _errorGarlandHeckbert()
-    //        to generate new matrix for the new vertex and to compute
-    //        coordinates of the new vertex
-    //      } else {
-    //        set coordinates of the new vertex as edge midpoint
-    //      }
-    //      increment iVnew
-    //   }
-    // }
     for (int iV=0; iV<nV; iV++) {
         if (!selectedEdgeVertex[iV]) {
             vertexMap[iV] = iVnew;

@@ -91,9 +91,13 @@ PolygonMesh::PolygonMesh(const int nVertices, const vector<int>& coordIndex):
         }
     }
 
-    for(int i=0; i<nV; i++){
-        _nPartsVertex.push_back(0);
-    }
+    //for(int i=0; i<nV; i++){
+    //    _nPartsVertex.push_back(0);
+    //}
+
+    //Alt:
+    _nPartsVertex.insert(_nPartsVertex.end(),nV,0);
+
     for(int iC=0; iC<nC; iC++){
         if(partition.find(iC)==iC && coordIndex[iC]>=0){
             iV = coordIndex[iC];
